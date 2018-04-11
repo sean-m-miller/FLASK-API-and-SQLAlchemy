@@ -25,7 +25,7 @@ api.add_resource(BookList, "/booklist")
 
 #user endpoints:
 api.add_resource(User, "/user/<string:google_tok>")
-api.add_resource(UserList, "/userlist")
+api.add_resource(UserList, "/userlist/<int:page>")
 
 if __name__ == '__main__': # prevents app from running when being imported from elsewhere
     from db import db # prevents circular import

@@ -28,15 +28,17 @@ class ListingModel(db.Model):
         self.google_tok = google_tok
         self.status = status
 
+    #Both json functions below used to also include 'isbn': self.isbn
+
     def listing_json_w_user(self):
         try:
-            return {"listing_id": self.listing_id, 'price': self.price, 'condition': self.condition, 'isbn': self.isbn, 'status': self.status, 'user': self.user.user_json_wo_listings()}
+            return {"listing_id": self.listing_id, 'price': self.price, 'condition': self.condition, 'status': self.status, 'user': self.user.user_json_wo_listings()}
         except:
             return {"Message": "User does not exist in DB"}
 
     def listing_json_w_book(self):
         try:
-            return {"listing_id": self.listing_id, 'price': self.price, 'condition': self.condition, 'isbn': self.isbn, 'status': self.status, 'book': self.book.book_json_wo_listings()}
+            return {"listing_id": self.listing_id, 'price': self.price, 'condition': self.condition, 'status': self.status, 'book': self.book.book_json_wo_listings()}
         except:
             return {"Message": "Book does not exist in DB"}
 
@@ -165,7 +167,7 @@ class allListings(Resource):
     def get(self, search):
         strings = search.split("+")
         try:
-            page = int(strings[4])
+            page = int(strings[3])
         except:
             return {"message": "No page provided"}
         listings = []
@@ -176,20 +178,23 @@ class allListings(Resource):
             ISBNS = strings[0].split(",") # seperate ISBN's by comma,
             for i in range(len(ISBNS)): # turn to ints
                 ISBNS[i] = int(ISBNS[i])
-            if len(strings[2]) > 0: # price was provided
-                price = float(strings[2])
-                if len(strings[3]) > 0: #condition was provided
-                    condition = strings[3] # "bad", "ehh", "good", or "new"
+            if len(strings[1]) > 0: # price was provided
+                price = float(strings[1])
+                if len(strings[2]) > 0: #condition was provided
+                    condition = strings[2] # "bad", "ehh", "good", or "new"
                     all_listings = ListingModel.query.filter(ListingModel.isbn.in_(ISBNS)).filter(ListingModel.price <= price).filter(ListingModel.condition >= condition).all()
                 else: # ISBN's, price, no condition
                     all_listings = ListingModel.query.filter(ListingModel.isbn.in_(ISBNS)).filter(ListingModel.price <= price).all()
-            elif len(strings[3]) > 0: # ISBNs, no price, condition
-                condition = strings[3]
+            elif len(strings[2]) > 0: # ISBNs, no price, condition
+                condition = strings[2]
                 all_listings = ListingModel.query.filter(ListingModel.isbn.in_(ISBNS)).filter(ListingModel.condition >= condition).all()
             else: #ISBN's, no price nor condition
                 all_listings = ListingModel.query.filter(ListingModel.isbn.in_(ISBNS)).all()
         else: # No ISBN's provided,
             return {"message": "No ISBN's provided"}
+
+            #below is code to be used for a search function given above implementation
+
             search_ = strings[1]
             for i in search_:
                 if i == "_":
