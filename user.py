@@ -57,7 +57,8 @@ class UserModel(db.Model):
 	def delete_from_db(self):
 		db.session.delete(self)
 		db.session.commit()
-		return self.user_json_wo_listings()
+		for listing in self.listings:
+			listing.delete_from_db()
 
 	# How the book class will be printed
 	def __repr__(self):
@@ -103,7 +104,7 @@ class User(Resource):
 		if user:
 			user.delete_from_db()
 			return {"message": "User deleted"}
-		return {"message": "User with user_id (" + user_id + ") does not exist."}
+		return {"message": "User with user_id (" + google_tok + ") does not exist."}
 
 	def put(self, isbn): # update listings
 		pass
@@ -123,3 +124,18 @@ class User(Resource):
 class UserList(Resource):
 	def get(self):
 		return {"users": [user.user_json_w_listings() for user in UserModel.query.all()]}
+
+	# search_ = strings[1]
+	# for i in search_:
+	# 	if i == "_":
+	# 		search_by.append(" ")
+	# 	else:
+	# 		search_by.append(i)
+	# search_by = ''.join(search_by)
+	# if len(strings[2]) > 0: # price was provided
+	# 	price = float(strings[2])
+	# 	if len(strings[3]) > 0: #condition was provided
+	# 		condition = strings[3] # "bad", "ehh", "good", or "new"
+	# 		print(search_by)
+	# 		all_listings = ListingModel.query.filter(ListingModel.book.book_json_wo_listings()["author"] == search_by or ListingModel.book.book_json_wo_listings()["title"] == search_by).filter(ListingModel.price <= price).filter(ListingModel.condition >= condition).all()
+	# 		return{"listings": [all_listings[i].listing_json_w_book_and_user() for i in range(page*page_size, min(((page+1)*page_size),len(all_listings)))], "page": page, "of": of}

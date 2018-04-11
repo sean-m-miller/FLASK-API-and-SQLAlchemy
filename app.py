@@ -20,7 +20,7 @@ api.add_resource(allListings, "/listings/<string:search>")
 
 #Book endpoints:
 api.add_resource(Book, "/book/<int:isbn>")
-api.add_resource(BookList, "/booklist/<string:search>")
+api.add_resource(BookList, "/booklist")
 
 
 #user endpoints:

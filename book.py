@@ -32,7 +32,6 @@ class BookModel(db.Model):
 		self.title = title
 		self.author = author
 
-
 	def get_listings(self):
 		listing_ids = []
 		for listing in self.listings:
@@ -59,7 +58,9 @@ class BookModel(db.Model):
 	def delete_from_db(self):
 		db.session.delete(self)
 		db.session.commit()
-		return self.book_json_wo_listings()
+		for listing in self.listings:
+			listing.delete_from_db()
+		#return self.book_json_wo_listings()
 
 	# How the book class will be printed
 	def __repr__(self):
@@ -77,12 +78,12 @@ class Book(Resource):
 	parser.add_argument('title',
 		type=str,
 		required=True,
-		help="This field cannot be blank."
+		help="title: This field cannot be blank."
 	)
 	parser.add_argument('author',
 		type=str,
 		required=True,
-		help="This field cannot be blank."
+		help="author: This field cannot be blank."
 	)
 
 	def get(self, isbn): # Get request, looking for isbn
@@ -94,7 +95,7 @@ class Book(Resource):
 	def post(self, isbn):
 		data = Book.parser.parse_args()
 		if BookModel.find_by_isbn(isbn):
-			return {'message': 'A book with isbn ' + str(isbn) + 'already exists'}, 400
+			return {'message': 'A book with isbn ' + str(isbn) + ' already exists'}, 400
 		book = BookModel(isbn, data['title'], data['author'])
 		book.save_to_db()
 		return {"message": "Book created successfully."}, 201
@@ -118,9 +119,10 @@ class Book(Resource):
 			book.author = data['author']"""
 
 class BookList(Resource):
-	#def get(self):
+	def get(self):
 		#return {"books": [book.json() for book in BookModel.query.all()]}
-	
+		return {"books": [book.book_json_w_listings() for book in BookModel.query.all()]}
+
 
 
 
