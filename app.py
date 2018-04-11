@@ -1,71 +1,33 @@
-# Currently supports GET requests and does simple JSON parsing
-from flask import Flask, jsonify, request, render_template
+from flask import Flask
+from flask_restful import Api
+from flask_jwt import JWT
+from listing import Listing, allListings
+from book import Book, BookList
+from user import User, UserList
 
-app = Flask(__name__) #gives each file its own name, don't worry about it
-stores = [
-    {
-        "name":"Costco",
-        "items": [
-            {
-                "name": "Coke",
-                "price": 4.99
-            }
-        ]
-    }
-]
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///data.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False #turns off Flask-SQL Alchemy modification tracker, not underlying SQLAlchemy modification tracker
+api = Api(app)
 
-@app.route("/")
-def home():
-    return render_template("index.html")
+@app.before_first_request
+def create_tables():
+    db.create_all()
 
-#POST /store data: {name:}
-@app.route("/store", methods=["POST"])
-def create_store():
-    request_data = request.get_json()
-    new_store = {
-        "name" : request_data["name"],
-        "items" : []
-    }
-    stores.append(new_store)
-    return jsonify(new_store)
-    
-#GET /store/<string:name>
-@app.route("/store/<string:name>")
-def get_store(name):
-    for store in stores:
-        if store["name"] == name:
-            return jsonify(store)
-    return jsonify({"message": "Store not Found"})
-    
-#GET /store/
-@app.route("/store")
-def get_stores():
-    return jsonify({"stores": stores})
+#Listing endpoints:
+api.add_resource(Listing, "/listing/<int:isbn>") # must be listing_id to support POST and DELETE
+api.add_resource(allListings, "/listings/<string:search>")
 
-#POST /store/<string:name>/item {name:, price:}
-@app.route("/store/<string:name>/item", methods=["POST"])
-def create_item_in_store(name):
-    request_data = request.get_json()
-    for store in stores:
-        if store["name"] == name:
-            new_item = {
-                "name": request_data["name"],
-                "price": request_data["price"]
-            }
-            store["items"].append(new_item)
-            return jsonify({"message": "New Item Created"})
-    return jsonify({"message": "Store not found"})
-    
-# GET /store/<string:name>/item
-@app.route("/store/<string:name>/<string:item>")
-def get_items_in_store(name, item):
-    #return jsonify({"message": "hello"})
-    for store in stores:
-        if store["name"] == name:
-            for x in store["items"]:
-                if x["name"] == item:
-                    return jsonify({"price of " + item: x["price"]}) #perfroms intended GET request
-    return jsonify({"message": "store not found"})
-    
+#Book endpoints:
+api.add_resource(Book, "/book/<int:isbn>")
+api.add_resource(BookList, "/booklist/<string:search>")
 
-app.run(port=5000)
+
+#user endpoints:
+api.add_resource(User, "/user/<string:google_tok>")
+api.add_resource(UserList, "/userlist")
+
+if __name__ == '__main__': # prevents app from running when being imported from elsewhere
+    from db import db # prevents circular import
+    db.init_app(app)
+    app.run(port=5000, debug=True)
