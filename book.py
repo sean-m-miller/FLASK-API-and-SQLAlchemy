@@ -1,7 +1,8 @@
-from sqlalchemy import Table, Column, Integer, ForeignKey
+from sqlalchemy import Table, Column, Integer, ForeignKey, or_
 from sqlalchemy.orm import relationship
 from flask_restful import Resource, reqparse
 import math # math.ciel() used for paging
+#from assoc_tables import association_table1
 
 from db import db
 
@@ -20,17 +21,40 @@ class BookModel(db.Model):
     # Creates a table named 'book'
 	__tablename__ = 'books'
 
-	isbn = db.Column(db.Integer, primary_key=True)
 	title = db.Column(db.String)
-	author = db.Column(db.String)
+	subtitle = db.Column(db.String)
+	# many to many relationship to author
+	authors = db.Column(db.String)
+	"""authors = relationship(
+        "AuthorModel",
+        secondary=association_table1,
+        back_populates='works')
+	"""
+	isbn = db.Column(db.Integer, primary_key=True) # only use 13 digit isbn, 10 digit if no 13
+	categories = db.Column(db.String)
+	publishedDate = db.Column(db.String)
+	smallThumbnail = db.Column(db.String)
+	thumbnail = db.Column(db.String)
+	previewLink = db.Column(db.String)
+	infoLink = db.Column(db.String)
+	canonicalVolumeLink = db.Column(db.String)
+	#author = db.Column(db.String)
 	# One to many relationship: Book to listings
 	# Changing Owen's method a bit using different functions, hopefully desired effect
 	listings = db.relationship('ListingModel')
 
-	def __init__(self, isbn, title, author):
-		self.isbn = isbn
+	def __init__(self, title, subtitle, authors, isbn, categories, publishedDate, smallThumbnail, thumbnail, previewLink, infoLink, canonicalVolumeLink):
 		self.title = title
-		self.author = author
+		self.subtitle = subtitle
+		self.isbn = isbn
+		self.authors = authors
+		self.categories = categories
+		self.publishedDate = publishedDate
+		self.smallThumbnail = smallThumbnail
+		self.thumbnail = thumbnail
+		self.previewLink = previewLink
+		self.infoLink = infoLink
+		self.canonicalVolumeLink = canonicalVolumeLink
 
 	def get_listings(self):
 		listing_ids = []
@@ -40,11 +64,15 @@ class BookModel(db.Model):
 
 	# Returns a json object representing the book
 	def book_json_w_listings(self):
-		return {'isbn': self.isbn, 'title': self.title, 'author': self.author, 'listings': self.get_listings()}
+		return {'isbn': self.isbn, 'title': self.title, 'subtitle': self.subtitle, 'authors': self.authors, 'categories': self.categories, 'publishedDate': self.publishedDate, 'smallThumbnail': self.smallThumbnail, 'thumbnail': self.thumbnail, 'previewLink': self.previewLink, 'infoLink': self.infoLink, 'canonicalVolumeLink': self.canonicalVolumeLink, 'listings': self.get_listings()}
 		#if you ALSO want listings tied to the book
 		#return {'isbn': self.isbn, 'title': self.title, 'author': self.author, 'listings': self.get_listings()}
 	def book_json_wo_listings(self):
-		return {'isbn': self.isbn, 'title': self.title, 'author': self.author}
+		return {'isbn': self.isbn, 'title': self.title, 'subtitle': self.subtitle, 'authors': self.authors, 'categories': self.categories, 'publishedDate': self.publishedDate, 'smallThumbnail': self.smallThumbnail, 'thumbnail': self.thumbnail, 'previewLink': self.previewLink, 'infoLink': self.infoLink, 'canonicalVolumeLink': self.canonicalVolumeLink}
+
+	def bare_json(self):
+		return {'isbn': self.isbn, 'title': self.title, 'subtitle': self.subtitle, 'authors': self.authors, 'categories': self.categories, 'publishedDate': self.publishedDate, 'smallThumbnail': self.smallThumbnail, 'thumbnail': self.thumbnail, 'previewLink': self.previewLink, 'infoLink': self.infoLink, 'canonicalVolumeLink': self.canonicalVolumeLink, "listing_ids": [l.listing_id for l in self.listings]}
+
 
 	@classmethod
 	def find_by_isbn(cls, isbn): # Abstracted and redefined from get
@@ -75,28 +103,78 @@ class Book(Resource):
         required=True,
 		help="This field cannot be blank."
 	)"""
+	parser.add_argument('subtitle',
+		type=str,
+		required=False,
+		help="subtitle"
+	)
 	parser.add_argument('title',
 		type=str,
 		required=True,
 		help="title: This field cannot be blank."
 	)
-	parser.add_argument('author',
+	parser.add_argument('authors',
+		action='append',
 		type=str,
 		required=True,
 		help="author: This field cannot be blank."
 	)
+	parser.add_argument('categories',
+		action='append',
+		required=False,
+		help="categories: Check formatting."
+	)
+	parser.add_argument('publishedDate',
+		type=str,
+		required=False,
+		help="publishedDate: check formatting"
+	)
+	parser.add_argument('smallThumbnail',
+		type=str,
+		required=False,
+		help="smallThumbnail check formatting."
+	)
+	parser.add_argument('thumbnail',
+		type=str,
+		required=False,
+		help="thumbnail: check formatting"
+	)
+	parser.add_argument('previewLink',
+		type=str,
+		required=False,
+		help="previewLink: check formatting."
+	)
+	parser.add_argument('infoLink',
+		type=str,
+		required=False,
+		help="infoLink: check formatting."
+	)
+	parser.add_argument('canonicalVolumeLink',
+		type=str,
+		required=False,
+		help="canonicalVolumeLink: check formatting."
+	)
 
-	def get(self, isbn): # Get request, looking for isbn
-		book = BookModel.find_by_isbn(isbn)
-		if book:
-			return book.book_json_w_listings()
+	def get(self, isbns): # Get request, looking for all books based on isbns
+		all_isbns = isbns.split(",")
+		for i in range(0, len(all_isbns)):
+			all_isbns[i] = int(all_isbns[i])
+		data = BookModel.query.filter(BookModel.isbn.in_(all_isbns)).all()
+		listing_ids = []
+		if len(data):
+			return {"books": [book.bare_json() for book in data]}
 		return {"message": "Book not found"}, 404
 
-	def post(self, isbn):
+
+	def post(self, isbns):
 		data = Book.parser.parse_args()
+		isbn = int(isbns) # string of only one ISBN
 		if BookModel.find_by_isbn(isbn):
 			return {'message': 'A book with isbn ' + str(isbn) + ' already exists'}, 400
-		book = BookModel(isbn, data['title'], data['author'])
+		print(data["authors"])
+		authors = ', '.join(author for author in data["authors"]) #BOOM!
+		categories = ", ".join(category in category in data['categories'])
+		book = BookModel(data['title'], data['subtitle'], authors, isbn, categories, data['publishedDate'], data['smallThumbnail'], data['thumbnail'], data['previewLink'], data['infoLink'], data['canonicalVolumeLink'])
 		book.save_to_db()
 		return {"message": "Book created successfully."}, 201
 
@@ -119,9 +197,11 @@ class Book(Resource):
 			book.author = data['author']"""
 
 class BookList(Resource):
-	def get(self):
-		#return {"books": [book.json() for book in BookModel.query.all()]}
-		return {"books": [book.book_json_w_listings() for book in BookModel.query.all()]}
+	def get(self, search): # books -> users
+		search = search.replace("_", " ")
+		print(search)
+		books = BookModel.query.filter(or_(BookModel.title.contains(search), BookModel.authors.contains(search), BookModel.subtitle.contains(search), BookModel.categories.contains(search), BookModel.publishedDate.contains(search))) #Operator 'contains' is not supported on this expression!!! search in subtitle, search in publishedDate
+		return {"books": [book.bare_json() for book in books]}
 
 
 

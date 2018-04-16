@@ -5,7 +5,7 @@ from math import ceil # for ceil used for paging
 
 from db import db
 
-page_size = 20
+page_size = 2
 
 class ListingModel(db.Model):
     #used to be ^^ class ListingModel(db.Model):
@@ -49,6 +49,11 @@ class ListingModel(db.Model):
             # return {"message": "user deleted"}
             return {"Message": "Object does not exist in DB"}
 
+    def bare_json(self):
+        return {'price': self.price, 'condition': self.condition, 'status': self.status, "listing_id": self.listing_id}
+
+    def bu_bare_json(self):
+        return {'price': self.price, 'condition': self.condition, 'status': self.status, "listing_id": self.listing_id, "google_tok": self.google_tok}
     #def get_user(self):
     #    user = []
     #    user.append(user.find_by_google_tok(self.google_tok))
@@ -89,20 +94,19 @@ class Listing(Resource):
     )
     parser.add_argument("price", #requests must be in format { "price": float}
         type=float,
-        required=False,
+        required=True,
         help="FORMAT ERROR: This request must have be string : float where string == price "
     )
     parser.add_argument("condition",
         type=str,
-        required=False,
+        required=True,
         help="FORMAT ERROR: This request must have be string : string "
     )
-    """parser.add_argument("isbn",
+    parser.add_argument("isbn",
         type=int,
-        required=True,
+        required=False,
         help="FORMAT ERROR: This request must have be string : integer where string == price "
     )
-    """
     parser.add_argument("google_tok",
         type=str,
         required=False,
@@ -110,31 +114,50 @@ class Listing(Resource):
     )
     parser.add_argument("status",
         type=str,
-        required=False,
+        required=True,
         help="FORMAT ERROR: This request must have be string : string where string == price "
     )
 
-    def get(self, isbn): # get request, looking for item called "name",
-        l = ListingModel.find_by_isbn(isbn)
-        if l:
-            return l.listing_json_w_user()
-        return {"message": "Item not found"}, 404
+    def get(self, ids): # get request, looking for all listing objects from ID's, user -> books
+        ids = ids.split("+")
+        try:
+            page = int(ids[1])
+        except:
+            return {"message": "No page provided"}
+        ids = ids[0].split(",")
+        for id_ in range(0, len(ids)):
+            #print(ids)
+            ids[id_] = int(ids[id_]) # must be in format ISBN, ISBN, etc. , LAST ISBN CANNOT BE FOLLOWED BY COMMA, single ISBN should not have comma
+        all_listings = ListingModel.query.filter(ListingModel.listing_id.in_(ids)).all()
+        isbns = []
+        for l in all_listings:
+            if l.isbn not in isbns: # avoid duplicates
+                isbns.append(l.isbn)
+        of = ceil(len(all_listings)/page_size)
+        return {"listings": [all_listings[i].bare_json() for i in range(page*page_size,(min((page+1)*page_size, len(all_listings))))], "isbns": isbns, "page": page, "of": of}
+        #return {"listings": [listing.listing_json_w_user() for listing in ListingModel.query.filter_by(isbn=isbn).order_by(ListingModel.price).all()]}
 
-    def post(self, isbn):
+        # l = ListingModel.find_by_isbn(isbn)
+        # if l:
+        #     return l.listing_json_w_user()
+        # return {"message": "Item not found"}, 404
+
+    def post(self, ids):
         #Code below shouldn't be necessary
         #if ListingModel.find_by_isbn(isbn):
         #    return {'message': 'An item with isbn ' + isbn + 'already exists.'}, 400
         data = Listing.parser.parse_args() # what the user will send to the post request (in good format)
         # In our case, the user sends the price as JSON, but the item name gets passed into the function
+        isbn = int(ids)
         item = ListingModel(data["price"], data["condition"], isbn, data["google_tok"], data["status"])
         try:
             item.save_to_db()
         except:
             return{"message": "An error occurred while inserting"}, 500 # internal server error
 
-        return item.listing_json_w_book(), 201 #post was successful
+        return {"message": "post was successful"}, 201 #post was successful
 
-    def delete(self, isbn):
+    def delete(self, ids):
         data = Listing.parser.parse_args()
         item = ListingModel.find_by_listing_id(data["listing_id"])
         if item:
@@ -165,8 +188,34 @@ class allListings(Resource):
     #    return{"listings": [item.json() for item in ListingModel.query.all()]}
 
     def get(self, search):
-        strings = search.split("+")
-        try:
+        #used to go from books to users, also called on the home page to display most recent listings
+        if search == "home": # right now, it just returns the most recent listings, not most recent 20 books
+            listings = ListingModel.query.order_by(ListingModel.listing_id.desc())
+        else:
+            strings = search.split("+")
+            listing_ids = strings[0].split(",")
+            for i in range(0, len(listing_ids)):
+                listing_ids[i] = int(listing_ids[i])
+            if len(strings[1]) > 0: # sort by price
+                listings = ListingModel.query.filter(ListingModel.listing_id.in_(listing_ids)).order_by(ListingModel.condition)
+            elif len(strings[2]) > 0: #sort by condition
+                listings = ListingModel.query.filter(ListingModel.listing_id.in_(listing_ids)).order_by(ListingModel.price.desc())
+            else: # no filters provided
+                listings = ListingModel.query.filter(ListingModel.listing_id.in_(listing_ids))
+        tokens = []
+        for listing in listings:
+            if listing.google_tok not in tokens:
+                tokens.append(listing.google_tok)
+        if search == "home": # this is hilarious
+            isbns = []
+            for listing in listings:
+                if listing.isbn not in isbns:
+                    isbns.append(listing.isbn)
+            return{"listings": [listing.bare_json() for listing in listings], "google_tokens": tokens, "isbns": isbns}
+        return {"listings": [listing.bu_bare_json() for listing in listings], "google_tokens": tokens}
+
+
+        """try:
             page = int(strings[3])
         except:
             return {"message": "No page provided"}
@@ -182,6 +231,16 @@ class allListings(Resource):
                 price = float(strings[1])
                 if len(strings[2]) > 0: #condition was provided
                     condition = strings[2] # "bad", "ehh", "good", or "new"
+                    for current_isbn in ISBNS:
+                        all_listings = ListingModel.query.filter(ListingModel.isbn == current_isbn).filter(ListingModel.price <= price).filter(ListingModel.condition >= condition).all()
+
+
+
+
+
+
+
+
                     all_listings = ListingModel.query.filter(ListingModel.isbn.in_(ISBNS)).filter(ListingModel.price <= price).filter(ListingModel.condition >= condition).all()
                 else: # ISBN's, price, no condition
                     all_listings = ListingModel.query.filter(ListingModel.isbn.in_(ISBNS)).filter(ListingModel.price <= price).all()
@@ -247,3 +306,4 @@ class allListings(Resource):
     #     elif search != "all":
     #         return {"message": "Please enter booklist/all or booklist/author:xxx or booklist/title:xxx"}
     #     return {"books": [listing.listing_json_w_user() for listing in ListingModel.query.all()]}
+    """
