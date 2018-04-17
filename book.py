@@ -167,15 +167,44 @@ class Book(Resource):
 	def post(self, isbns):
 		data = Book.parser.parse_args()
 		isbn = int(isbns) # string of only one ISBN
+		#Error handling, in case not all passed in
+		title = "None"
+		authors = "None"
+		categories = "None"
+		imagelinks = "None"
+		thumbnail = "None"
+		smallThumbnail = "None"
+		subtitle = "None"
+		publishedDate = "None"
+		previewLink = "None"
+		infoLink = "None"
+		canonicalVolumeLink = "None"
 		if BookModel.find_by_isbn(isbn):
 			return {'message': 'A book with isbn ' + str(isbn) + ' already exists'}, 400
-		print(data["imageLinks"][0])
-		authors = ', '.join(author for author in data["authors"]) #BOOM!
-		categories = ', '.join(category for category in data["categories"])
-		imagelinks = ast.literal_eval(data["imageLinks"][0]) #dumb json parsing
-		thumbnail = imagelinks["thumbnail"] # dumb json parsing.
-		smallThumbnail = imagelinks["smallThumbnail"] # dumb json parsing
-		book = BookModel(data['title'], data['subtitle'], authors, isbn, categories, data['publishedDate'], smallThumbnail, thumbnail, data['previewLink'], data['infoLink'], data['canonicalVolumeLink'])
+		#print(data["imageLinks"][0])
+		if data["title"]:
+			title = data["title"]
+		if data["authors"]:
+			authors = ', '.join(author for author in data["authors"]) #BOOM!
+		if data["subtitle"]:
+			subtitle = data["subtitle"]
+		if data["publishedDate"]:
+			publishedDate = data["publishedDate"]
+		if data["previewLink"]:
+			previewLink = data["previewLink"]
+		if data["infoLink"]:
+			infoLink = data["infoLink"]
+		if data["canonicalVolumeLink"]:
+			canonicalVolumeLink = data["canonicalVolumeLink"]
+		if data["categories"]:
+			categories = ', '.join(category for category in data["categories"])
+		if data["imageLinks"]:
+			imagelinks = ast.literal_eval(data["imageLinks"][0]) #dumb json parsing
+			if imagelinks["thumbnail"]:
+				thumbnail = imagelinks["thumbnail"] # dumb json parsing.
+			if imagelinks["smallThumbnail"]:
+				smallThumbnail = imagelinks["smallThumbnail"] # dumb json parsing
+		book = BookModel(title, subtitle, authors, isbn, categories, publishedDate, smallThumbnail, thumbnail, previewLink, infoLink, canonicalVolumeLink)
 		book.save_to_db()
 		return {"message": "Book created successfully."}, 201
 
