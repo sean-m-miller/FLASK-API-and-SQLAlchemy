@@ -52,7 +52,7 @@ class UserModel(db.Model):
 		return {'google_tok': self.google_tok, 'imageURL': self.imageURL, 'email': self.email, 'name': self.name, 'givenName': self.givenName, 'familyName': self.familyName, 'listings': self.get_listings()}
 
 	def bare_json(self):
-		return {'google_tok': self.google_tok, 'imageURL': self.imageURL, 'email': self.email, 'name': self.name, 'givenName': self.givenName, 'familyName': self.familyName}
+		return {'google_tok': self.google_tok, 'imageURL': self.imageURL, 'email': self.email, 'name': self.name, 'givenName': self.givenName, 'familyName': self.familyName, 'listing_ids': [listing.listing_id for listing in self.listings]}
 
 	@classmethod
 	def find_by_email(cls, email): # emails are unique between students, used to see if user exists or not
@@ -164,6 +164,7 @@ class UserList(Resource):
 		all_users = UserModel.query.filter(UserModel.google_tok.in_(tokens)).all()
 		#of = ceil(len(all_listings)/page_size)
 		#return {"users": [all_listings[i].user_json_w_listings() for i in range(page*page_size, min(((page+1)*page_size),len(all_listings)))], "page": page, "of": of}
+
 		return {"users": [user.bare_json() for user in all_users]}
 
 	#	return {"users": [user.user_json_w_listings() for user in UserModel.query.all()]}

@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from flask_restful import Resource, reqparse
 import math # math.ciel() used for paging
 #from assoc_tables import association_table1
+import ast # for json parsing imageLinks around line 177
 
 from db import db
 
@@ -121,6 +122,7 @@ class Book(Resource):
 	)
 	parser.add_argument('categories',
 		action='append',
+		type=str,
 		required=False,
 		help="categories: Check formatting."
 	)
@@ -129,15 +131,11 @@ class Book(Resource):
 		required=False,
 		help="publishedDate: check formatting"
 	)
-	parser.add_argument('smallThumbnail',
-		type=str,
+	parser.add_argument('imageLinks',
+		action='append',
+		#type=str,
 		required=False,
-		help="smallThumbnail check formatting."
-	)
-	parser.add_argument('thumbnail',
-		type=str,
-		required=False,
-		help="thumbnail: check formatting"
+		help="imageLinks check formatting."
 	)
 	parser.add_argument('previewLink',
 		type=str,
@@ -171,19 +169,22 @@ class Book(Resource):
 		isbn = int(isbns) # string of only one ISBN
 		if BookModel.find_by_isbn(isbn):
 			return {'message': 'A book with isbn ' + str(isbn) + ' already exists'}, 400
-		print(data["authors"])
+		print(data["imageLinks"][0])
 		authors = ', '.join(author for author in data["authors"]) #BOOM!
-		categories = ", ".join(category in category in data['categories'])
-		book = BookModel(data['title'], data['subtitle'], authors, isbn, categories, data['publishedDate'], data['smallThumbnail'], data['thumbnail'], data['previewLink'], data['infoLink'], data['canonicalVolumeLink'])
+		categories = ', '.join(category for category in data["categories"])
+		imagelinks = ast.literal_eval(data["imageLinks"][0]) #dumb json parsing
+		thumbnail = imagelinks["thumbnail"] # dumb json parsing.
+		smallThumbnail = imagelinks["smallThumbnail"] # dumb json parsing
+		book = BookModel(data['title'], data['subtitle'], authors, isbn, categories, data['publishedDate'], smallThumbnail, thumbnail, data['previewLink'], data['infoLink'], data['canonicalVolumeLink'])
 		book.save_to_db()
 		return {"message": "Book created successfully."}, 201
 
-	def delete(self, isbn):
-		book = BookModel.find_by_isbn(isbn)
+	def delete(self, isbns):
+		book = BookModel.find_by_isbn(isbns)
 		if book:
 			book.delete_from_db()
 			return {"message": "Book deleted"}
-		return {"message": "Book with isbn (" + str(isbn) + ") does not exist."}
+		return {"message": "Book with isbn (" + isbns + ") does not exist."}
 
 	"""def put(self, isbn):
 		data = Book.parser.parse_args()
